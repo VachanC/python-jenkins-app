@@ -1,51 +1,54 @@
 pipeline {
-    agent any
+    agent {
+        docker { image 'python:3.9' }
+    }
+
+    environment {
+        REPO_URL = 'https://github.com/VachanC/python-jenkins-app.git'
+        APP_DIR = 'python-jenkins-app'
+    }
 
     stages {
         stage('Clone Repository') {
             steps {
-                git branch: 'main', url: 'https://github.com/VachanC/python-jenkins-app.git'
+                sh '''
+                    if [ -d "$APP_DIR" ]; then
+                        rm -rf $APP_DIR
+                    fi
+                    git clone $REPO_URL
+                '''
             }
         }
 
         stage('Setup Python Environment') {
             steps {
-                script {
-                    def python_installed = sh(script: "command -v python3", returnStatus: true)
-                    if (python_installed != 0) {
-                        echo 'Python3 not found. Attempting to install...'
-                        
-                        // Try to install Python3 without breaking the pipeline
-                        sh '''
-                        apt-get update || echo "Skipping update due to permission issues"
-                        apt-get install -y python3 || echo "Skipping installation due to permission issues"
-                        '''
-                    } else {
-                        echo 'Python3 is already installed'
-                    }
-                }
+                sh '''
+                    cd $APP_DIR
+                    python3 --version
+                    python3 -m venv venv
+                    source venv/bin/activate
+                    pip install -r requirements.txt || echo "No requirements.txt found"
+                '''
             }
         }
 
         stage('Run Python App') {
             steps {
-                script {
-                    echo 'Running Python application...'
-                    sh '''
-                    python3 --version
-                    python3 app.py || echo "Python script execution failed"
-                    '''
-                }
+                sh '''
+                    cd $APP_DIR
+                    source venv/bin/activate
+                    python app.py || echo "Ensure app.py exists and runs properly"
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'Pipeline executed successfully!'
+            echo "Pipeline completed successfully! ✅"
         }
         failure {
-            echo 'Pipeline failed. Check logs for details.'
+            echo "Pipeline failed. Check logs for errors. ❌"
         }
     }
 }
